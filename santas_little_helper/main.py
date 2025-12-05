@@ -5,7 +5,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from santas_little_helper.models import Order, Package, Platform, Carrier, OrderStatus
@@ -600,10 +600,23 @@ def update_status(
             last_location = None
 
             if new_status == OrderStatus.DELIVERED:
-                use_now = typer.confirm(
-                    "Use current time for delivery?", default=True
-                )
-                delivered_at = datetime.now(UTC)
+                use_now = typer.confirm("Use current time for delivery?", default=True)
+                if use_now:
+                    delivered_at = datetime.now(UTC)
+                else:
+                    custom_time_str = typer.prompt(
+                        "Enter delivery time (YYYY-MM-DD HH:MM, UTC)", default=""
+                    )
+                    try:
+                        delivered_at = datetime.strptime(
+                            custom_time_str, "%Y-%m-%d %H:%M"
+                        )
+                        delivered_at = delivered_at.replace(tzinfo=UTC)
+                    except ValueError:
+                        console.print(
+                            "[red]✗ Invalid date format. Please use YYYY-MM-DD HH:MM[/red]"
+                        )
+                        raise typer.Exit(code=1)
 
             if new_status in [OrderStatus.IN_TRANSIT, OrderStatus.OUT_FOR_DELIVERY]:
                 last_location = (
@@ -656,7 +669,8 @@ def update_status(
                 f"\n[dim]Use 'santas-little-helper show {order_id}' to view full details[/dim]"
             )
 
-        except Exception as e:
+        except SQLAlchemyError as e:
+            session.rollback()
             console.print(f"[red]✗ Database error: {e}[/red]")
             raise typer.Exit(code=1)
 
