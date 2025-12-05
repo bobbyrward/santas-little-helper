@@ -161,18 +161,95 @@ def add_order():
 
 
 @app.command(name="list")
-def list_orders():
-    """List all orders in a formatted table."""
+def list_orders(
+    status: str = typer.Option(None, "--status", "-s", help="Filter by status (pending/shipped/in_transit/delivered/etc.)"),
+    platform: str = typer.Option(None, "--platform", "-p", help="Filter by platform (shop.app/etsy/amazon/generic)"),
+    has_tracking: bool = typer.Option(None, "--has-tracking", help="Show only orders with tracking"),
+    no_tracking: bool = typer.Option(None, "--no-tracking", help="Show only orders without tracking"),
+    delivered: bool = typer.Option(False, "--delivered", help="Show only delivered orders"),
+    active: bool = typer.Option(False, "--active", help="Show only active (non-delivered, non-cancelled) orders"),
+):
+    """List all orders in a formatted table.
+
+    Examples:
+      santas-little-helper list --active
+      santas-little-helper list --platform etsy
+      santas-little-helper list --status in_transit
+      santas-little-helper list --no-tracking
+    """
     with get_session() as session:
         try:
-            # Query all orders with eager loading of packages
-            orders = session.query(Order).options(joinedload(Order.packages)).all()
+            # Build query with filters
+            query = session.query(Order).options(joinedload(Order.packages))
+
+            # Validate and apply status filter
+            if status:
+                status_lower = status.lower()
+                try:
+                    status_enum = OrderStatus(status_lower)
+                    query = query.filter(Order.status == status_enum.value)
+                except ValueError:
+                    console.print(f"[red]✗ Invalid status: {status}[/red]")
+                    console.print(f"[yellow]Must be one of: {', '.join([s.value for s in OrderStatus])}[/yellow]")
+                    raise typer.Exit(code=1)
+
+            # Validate and apply platform filter
+            if platform:
+                platform_lower = platform.lower()
+                try:
+                    platform_enum = Platform(platform_lower)
+                    query = query.filter(Order.platform == platform_enum.value)
+                except ValueError:
+                    console.print(f"[red]✗ Invalid platform: {platform}[/red]")
+                    console.print(f"[yellow]Must be one of: {', '.join([p.value for p in Platform])}[/yellow]")
+                    raise typer.Exit(code=1)
+
+            # Apply tracking filters
+            if has_tracking:
+                query = query.filter(Order.packages.any())
+            elif no_tracking:
+                query = query.filter(~Order.packages.any())
+
+            # Apply convenience filters
+            if delivered:
+                query = query.filter(Order.status == OrderStatus.DELIVERED.value)
+
+            if active:
+                query = query.filter(
+                    Order.status.notin_([OrderStatus.DELIVERED.value, OrderStatus.CANCELLED.value])
+                )
+
+            # Execute query
+            orders = query.all()
+
+            # Build filter description for title and empty message
+            filters = []
+            if status:
+                filters.append(f"Status: {status}")
+            if platform:
+                filters.append(f"Platform: {platform}")
+            if has_tracking:
+                filters.append("With Tracking")
+            if no_tracking:
+                filters.append("No Tracking")
+            if delivered:
+                filters.append("Delivered Only")
+            if active:
+                filters.append("Active Only")
 
             # Empty state
             if not orders:
-                console.print(
-                    "[yellow]No orders found. Add one with 'santas-little-helper add-order'[/yellow]"
-                )
+                if filters:
+                    console.print(
+                        "[yellow]No orders match the specified filters.[/yellow]"
+                    )
+                    console.print(
+                        "[dim]Try different filters or use 'list' without options to see all orders.[/dim]"
+                    )
+                else:
+                    console.print(
+                        "[yellow]No orders found. Add one with 'santas-little-helper add-order'[/yellow]"
+                    )
                 return
 
             # Group orders by status
@@ -196,8 +273,11 @@ def list_orders():
                     )
                 )
 
-            # Create Rich table
-            table = Table(title="Christmas Orders", show_header=True, header_style="bold magenta")
+            # Create Rich table with filter-aware title
+            title = "Christmas Orders"
+            if filters:
+                title = f"Christmas Orders ({', '.join(filters)})"
+            table = Table(title=title, show_header=True, header_style="bold magenta")
             table.add_column("ID", style="dim", width=6)
             table.add_column("Platform", width=12)
             table.add_column("Description", width=30)
