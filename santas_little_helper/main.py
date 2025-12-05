@@ -1,11 +1,11 @@
 """Main CLI entry point."""
 
-from datetime import datetime
+from datetime import datetime, UTC
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from santas_little_helper.models import Order, Package, Platform, Carrier, OrderStatus
@@ -540,6 +540,136 @@ def add_tracking(
                 console.print(f"[red]✗ Database constraint error: {e}[/red]")
             raise typer.Exit(code=1)
         except Exception as e:
+            session.rollback()
+            console.print(f"[red]✗ Database error: {e}[/red]")
+            raise typer.Exit(code=1)
+
+
+@app.command(name="update-status")
+def update_status(
+    order_id: int = typer.Argument(..., help="Order ID to update"),
+):
+    """Manually update the status of an order or its packages."""
+    with get_session() as session:
+        try:
+            # Query order with eager loading of packages
+            order = (
+                session.query(Order)
+                .options(joinedload(Order.packages))
+                .filter(Order.id == order_id)
+                .first()
+            )
+
+            if not order:
+                console.print(f"[red]✗ Order {order_id} not found[/red]")
+                raise typer.Exit(code=1)
+
+            # Show current statuses
+            console.print("\n[bold]Current Status:[/bold]")
+            console.print(f"  Order: {format_status(order.status)}")
+            if order.packages:
+                for pkg in order.packages:
+                    console.print(
+                        f"  Package {pkg.tracking_number}: {format_status(pkg.status)}"
+                    )
+
+            # Ask what to update
+            update_target = "order"
+            if order.packages:
+                update_target = typer.prompt(
+                    "Update order or package? (order/package)", default="order"
+                ).lower()
+
+            # Show available statuses
+            console.print("\n[bold]Available statuses:[/bold]")
+            for status in OrderStatus:
+                console.print(f"  - {status.value}")
+
+            new_status_input = typer.prompt("New status").lower()
+            try:
+                new_status = OrderStatus(new_status_input)
+            except ValueError:
+                console.print(f"[red]✗ Invalid status: {new_status_input}[/red]")
+                console.print(
+                    f"[yellow]Must be one of: {', '.join([s.value for s in OrderStatus])}[/yellow]"
+                )
+                raise typer.Exit(code=1)
+
+            # Handle special status fields
+            delivered_at = None
+            last_location = None
+
+            if new_status == OrderStatus.DELIVERED:
+                use_now = typer.confirm("Use current time for delivery?", default=True)
+                if use_now:
+                    delivered_at = datetime.now(UTC)
+                else:
+                    custom_time_str = typer.prompt(
+                        "Enter delivery time (YYYY-MM-DD HH:MM, UTC)", default=""
+                    )
+                    try:
+                        delivered_at = datetime.strptime(
+                            custom_time_str, "%Y-%m-%d %H:%M"
+                        )
+                        delivered_at = delivered_at.replace(tzinfo=UTC)
+                    except ValueError:
+                        console.print(
+                            "[red]✗ Invalid date format. Please use YYYY-MM-DD HH:MM[/red]"
+                        )
+                        raise typer.Exit(code=1)
+
+            if new_status in [OrderStatus.IN_TRANSIT, OrderStatus.OUT_FOR_DELIVERY]:
+                last_location = (
+                    typer.prompt(
+                        "Last location (optional, press Enter to skip)",
+                        default="",
+                        show_default=False,
+                    )
+                    or None
+                )
+
+            # Apply updates
+            if update_target == "order":
+                order.status = new_status.value
+                # Sync to all packages
+                for pkg in order.packages:
+                    pkg.status = new_status.value
+                    if delivered_at:
+                        pkg.delivered_at = delivered_at
+                    if last_location:
+                        pkg.last_location = last_location
+            else:
+                # Update specific package
+                if len(order.packages) == 1:
+                    pkg = order.packages[0]
+                else:
+                    tracking = typer.prompt("Enter tracking number to update")
+                    pkg = next(
+                        (p for p in order.packages if p.tracking_number == tracking),
+                        None,
+                    )
+                    if not pkg:
+                        console.print(
+                            f"[red]✗ Package with tracking {tracking} not found[/red]"
+                        )
+                        raise typer.Exit(code=1)
+
+                pkg.status = new_status.value
+                if delivered_at:
+                    pkg.delivered_at = delivered_at
+                if last_location:
+                    pkg.last_location = last_location
+
+                # Sync order status to match package
+                order.status = new_status.value
+
+            session.commit()
+            console.print(f"[green]✓ Status updated to {new_status.value}[/green]")
+            console.print(
+                f"\n[dim]Use 'santas-little-helper show {order_id}' to view full details[/dim]"
+            )
+
+        except SQLAlchemyError as e:
             session.rollback()
             console.print(f"[red]✗ Database error: {e}[/red]")
             raise typer.Exit(code=1)
