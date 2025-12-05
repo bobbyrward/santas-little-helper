@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "task-master-ai": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--package=task-master-ai",
+        "task-master-ai"
+      ]
+    }
+  },
+  "languageServers": {
+    "python": {
+      "command": "pylsp",
+      "args": []
+    }
+  },
+  "memoryFiles": [
+    "CRUSH.md"
+  ]
+}
