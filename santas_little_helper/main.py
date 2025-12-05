@@ -485,7 +485,9 @@ def add_tracking(
 
             # Check if tracking already exists
             if order.packages:
-                console.print(f"[yellow]⚠ Order {order_id} already has tracking:[/yellow]")
+                console.print(
+                    f"[yellow]⚠ Order {order_id} already has tracking:[/yellow]"
+                )
                 for pkg in order.packages:
                     console.print(f"  {pkg.tracking_number} ({pkg.carrier})")
 
@@ -494,7 +496,9 @@ def add_tracking(
 
             # Prompt for tracking information
             tracking_number = typer.prompt("Tracking number")
-            carrier_input = typer.prompt("Carrier (fedex/ups/usps/amazon_logistics)").lower()
+            carrier_input = typer.prompt(
+                "Carrier (fedex/ups/usps/amazon_logistics)"
+            ).lower()
 
             # Validate carrier against Carrier enum
             try:
@@ -536,6 +540,7 @@ def add_tracking(
                 console.print(f"[red]✗ Database constraint error: {e}[/red]")
             raise typer.Exit(code=1)
         except Exception as e:
+            session.rollback()
             console.print(f"[red]✗ Database error: {e}[/red]")
             raise typer.Exit(code=1)
 
