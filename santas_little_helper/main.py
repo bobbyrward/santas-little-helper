@@ -3,6 +3,7 @@
 from datetime import datetime
 import typer
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -347,6 +348,74 @@ def list_orders(
         except Exception as e:
             console.print(f"[red]✗ Database error: {e}[/red]")
             raise typer.Exit(code=1)
+
+
+def format_status(status_value: str) -> str:
+    """Format status with color coding."""
+    color = STATUS_COLORS.get(status_value, "white")
+    return f"[{color}]{status_value}[/{color}]"
+
+
+def format_datetime(dt: datetime) -> str:
+    """Format datetime for display."""
+    if dt:
+        return dt.strftime("%Y-%m-%d %H:%M")
+    return "—"
+
+
+@app.command(name="show")
+def show_order(
+    order_id: int = typer.Argument(..., help="Order ID to display"),
+):
+    """Show detailed information for a specific order."""
+    with get_session() as session:
+        try:
+            # Query order with eager loading of packages
+            order = (
+                session.query(Order)
+                .options(joinedload(Order.packages))
+                .filter(Order.id == order_id)
+                .first()
+            )
+
+            if not order:
+                console.print(f"[red]✗ Order {order_id} not found[/red]")
+                raise typer.Exit(code=1)
+
+            # Display order information panel
+            order_info = f"""[bold]Order #{order.id}[/bold]
+
+Platform:     {order.platform}
+Order Number: {order.order_number or '—'}
+Description:  {order.description or '—'}
+Status:       {format_status(order.status)}
+Created:      {format_datetime(order.created_at)}
+Updated:      {format_datetime(order.updated_at)}
+"""
+            console.print(Panel(order_info, title="Order Information", border_style="blue"))
+
+            # Display package tracking information
+            if order.packages:
+                for package in order.packages:
+                    package_info = f"""[bold]Package #{package.id}[/bold]
+
+Tracking:         {package.tracking_number}
+Carrier:          {package.carrier}
+Status:           {format_status(package.status)}
+Last Location:    {package.last_location or 'Unknown'}
+Est. Delivery:    {package.estimated_delivery.strftime('%Y-%m-%d') if package.estimated_delivery else 'Unknown'}
+Delivered At:     {format_datetime(package.delivered_at) if package.delivered_at else '—'}
+"""
+                    console.print(Panel(package_info, title="Package Tracking", border_style="green"))
+            else:
+                no_tracking_info = "[yellow]No tracking information available[/yellow]"
+                console.print(Panel(no_tracking_info, title="Package Tracking", border_style="yellow"))
+
+        except Exception as e:
+            if "not found" not in str(e):
+                console.print(f"[red]✗ Database error: {e}[/red]")
+                raise typer.Exit(code=1)
+            raise
 
 
 def main():
