@@ -296,3 +296,7 @@ The project uses GitHub Actions for CI/CD:
 - Tests run on every push and pull request
 - Uses custom runner: `ohnozombiesrun`
 - Ensures code quality and test coverage
+
+## Task Master AI Instructions
+**Import Task Master's development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
+@./.taskmaster/CLAUDE.md
