@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Generator
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -35,7 +36,8 @@ def get_session_factory():
     return sessionmaker(bind=engine)
 
 
-def get_session() -> Generator[Session, None, None]:
+@contextmanager
+def get_session():
     """Get database session."""
     SessionFactory = get_session_factory()
     session = SessionFactory()
