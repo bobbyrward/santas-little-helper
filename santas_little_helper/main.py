@@ -163,12 +163,30 @@ def add_order():
 
 @app.command(name="list")
 def list_orders(
-    status: str = typer.Option(None, "--status", "-s", help="Filter by status (pending/shipped/in_transit/delivered/etc.)"),
-    platform: str = typer.Option(None, "--platform", "-p", help="Filter by platform (shop.app/etsy/amazon/generic)"),
-    has_tracking: bool = typer.Option(None, "--has-tracking", help="Show only orders with tracking"),
-    no_tracking: bool = typer.Option(None, "--no-tracking", help="Show only orders without tracking"),
-    delivered: bool = typer.Option(False, "--delivered", help="Show only delivered orders"),
-    active: bool = typer.Option(False, "--active", help="Show only active (non-delivered, non-cancelled) orders"),
+    status: str = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="Filter by status (pending/shipped/in_transit/delivered/etc.)",
+    ),
+    platform: str = typer.Option(
+        None,
+        "--platform",
+        "-p",
+        help="Filter by platform (shop.app/etsy/amazon/generic)",
+    ),
+    has_tracking: bool = typer.Option(
+        None, "--has-tracking", help="Show only orders with tracking"
+    ),
+    no_tracking: bool = typer.Option(
+        None, "--no-tracking", help="Show only orders without tracking"
+    ),
+    delivered: bool = typer.Option(
+        False, "--delivered", help="Show only delivered orders"
+    ),
+    active: bool = typer.Option(
+        False, "--active", help="Show only active (non-delivered, non-cancelled) orders"
+    ),
 ):
     """List all orders in a formatted table.
 
@@ -191,7 +209,9 @@ def list_orders(
                     query = query.filter(Order.status == status_enum.value)
                 except ValueError:
                     console.print(f"[red]✗ Invalid status: {status}[/red]")
-                    console.print(f"[yellow]Must be one of: {', '.join([s.value for s in OrderStatus])}[/yellow]")
+                    console.print(
+                        f"[yellow]Must be one of: {', '.join([s.value for s in OrderStatus])}[/yellow]"
+                    )
                     raise typer.Exit(code=1)
 
             # Validate and apply platform filter
@@ -202,7 +222,9 @@ def list_orders(
                     query = query.filter(Order.platform == platform_enum.value)
                 except ValueError:
                     console.print(f"[red]✗ Invalid platform: {platform}[/red]")
-                    console.print(f"[yellow]Must be one of: {', '.join([p.value for p in Platform])}[/yellow]")
+                    console.print(
+                        f"[yellow]Must be one of: {', '.join([p.value for p in Platform])}[/yellow]"
+                    )
                     raise typer.Exit(code=1)
 
             # Apply tracking filters
@@ -217,7 +239,9 @@ def list_orders(
 
             if active:
                 query = query.filter(
-                    Order.status.notin_([OrderStatus.DELIVERED.value, OrderStatus.CANCELLED.value])
+                    Order.status.notin_(
+                        [OrderStatus.DELIVERED.value, OrderStatus.CANCELLED.value]
+                    )
                 )
 
             # Execute query
@@ -267,7 +291,11 @@ def list_orders(
                     key=lambda o: (
                         # Get earliest estimated delivery from packages, or max date if none
                         min(
-                            (p.estimated_delivery for p in o.packages if p.estimated_delivery),
+                            (
+                                p.estimated_delivery
+                                for p in o.packages
+                                if p.estimated_delivery
+                            ),
                             default=datetime.max,
                         ),
                         o.description or "",
@@ -333,13 +361,21 @@ def list_orders(
             # Build summary line
             summary_parts = []
             if status_counts.get(OrderStatus.DELIVERED.value):
-                summary_parts.append(f"Delivered: {status_counts[OrderStatus.DELIVERED.value]}")
+                summary_parts.append(
+                    f"Delivered: {status_counts[OrderStatus.DELIVERED.value]}"
+                )
             if status_counts.get(OrderStatus.IN_TRANSIT.value):
-                summary_parts.append(f"In Transit: {status_counts[OrderStatus.IN_TRANSIT.value]}")
+                summary_parts.append(
+                    f"In Transit: {status_counts[OrderStatus.IN_TRANSIT.value]}"
+                )
             if status_counts.get(OrderStatus.SHIPPED.value):
-                summary_parts.append(f"Shipped: {status_counts[OrderStatus.SHIPPED.value]}")
+                summary_parts.append(
+                    f"Shipped: {status_counts[OrderStatus.SHIPPED.value]}"
+                )
             if status_counts.get(OrderStatus.PENDING.value):
-                summary_parts.append(f"Pending: {status_counts[OrderStatus.PENDING.value]}")
+                summary_parts.append(
+                    f"Pending: {status_counts[OrderStatus.PENDING.value]}"
+                )
 
             console.print(f"\nTotal orders: {total}")
             if summary_parts:
@@ -392,7 +428,9 @@ Status:       {format_status(order.status)}
 Created:      {format_datetime(order.created_at)}
 Updated:      {format_datetime(order.updated_at)}
 """
-            console.print(Panel(order_info, title="Order Information", border_style="blue"))
+            console.print(
+                Panel(order_info, title="Order Information", border_style="blue")
+            )
 
             # Display package tracking information
             if order.packages:
@@ -404,18 +442,26 @@ Carrier:          {package.carrier}
 Status:           {format_status(package.status)}
 Last Location:    {package.last_location or 'Unknown'}
 Est. Delivery:    {package.estimated_delivery.strftime('%Y-%m-%d') if package.estimated_delivery else 'Unknown'}
-Delivered At:     {format_datetime(package.delivered_at) if package.delivered_at else '—'}
+Delivered At:     {format_datetime(package.delivered_at)}
 """
-                    console.print(Panel(package_info, title="Package Tracking", border_style="green"))
+                    console.print(
+                        Panel(
+                            package_info, title="Package Tracking", border_style="green"
+                        )
+                    )
             else:
                 no_tracking_info = "[yellow]No tracking information available[/yellow]"
-                console.print(Panel(no_tracking_info, title="Package Tracking", border_style="yellow"))
+                console.print(
+                    Panel(
+                        no_tracking_info,
+                        title="Package Tracking",
+                        border_style="yellow",
+                    )
+                )
 
         except Exception as e:
-            if "not found" not in str(e):
-                console.print(f"[red]✗ Database error: {e}[/red]")
-                raise typer.Exit(code=1)
-            raise
+            console.print(f"[red]✗ Database error: {e}[/red]")
+            raise typer.Exit(code=1)
 
 
 def main():
