@@ -464,6 +464,82 @@ Delivered At:     {format_datetime(package.delivered_at)}
             raise typer.Exit(code=1)
 
 
+@app.command(name="add-tracking")
+def add_tracking(
+    order_id: int = typer.Argument(..., help="Order ID to add tracking to"),
+):
+    """Add tracking information to an existing order."""
+    with get_session() as session:
+        try:
+            # Query order with eager loading of packages
+            order = (
+                session.query(Order)
+                .options(joinedload(Order.packages))
+                .filter(Order.id == order_id)
+                .first()
+            )
+
+            if not order:
+                console.print(f"[red]✗ Order {order_id} not found[/red]")
+                raise typer.Exit(code=1)
+
+            # Check if tracking already exists
+            if order.packages:
+                console.print(f"[yellow]⚠ Order {order_id} already has tracking:[/yellow]")
+                for pkg in order.packages:
+                    console.print(f"  {pkg.tracking_number} ({pkg.carrier})")
+
+                if not typer.confirm("Add another tracking number?"):
+                    raise typer.Exit(code=0)
+
+            # Prompt for tracking information
+            tracking_number = typer.prompt("Tracking number")
+            carrier_input = typer.prompt("Carrier (fedex/ups/usps/amazon_logistics)").lower()
+
+            # Validate carrier against Carrier enum
+            try:
+                carrier = Carrier(carrier_input)
+            except ValueError:
+                console.print(f"[red]✗ Invalid carrier: {carrier_input}[/red]")
+                console.print(
+                    f"[yellow]Must be one of: {', '.join([c.value for c in Carrier])}[/yellow]"
+                )
+                raise typer.Exit(code=1)
+
+            # Create Package
+            package = Package(
+                order_id=order.id,
+                tracking_number=tracking_number,
+                carrier=carrier.value,
+                status=OrderStatus.SHIPPED.value,
+            )
+            session.add(package)
+
+            # Update order status if still PENDING
+            if order.status == OrderStatus.PENDING.value:
+                order.status = OrderStatus.SHIPPED.value
+
+            session.commit()
+
+            # Success message
+            console.print(f"[green]✓ Tracking added to Order #{order_id}[/green]")
+            console.print(f"[green]  {tracking_number} via {carrier.value}[/green]")
+            console.print(
+                f"\n[dim]Use 'santas-little-helper show {order_id}' to view full details[/dim]"
+            )
+
+        except IntegrityError as e:
+            session.rollback()
+            if "tracking_number" in str(e):
+                console.print("[red]✗ Tracking number already exists in database[/red]")
+            else:
+                console.print(f"[red]✗ Database constraint error: {e}[/red]")
+            raise typer.Exit(code=1)
+        except Exception as e:
+            console.print(f"[red]✗ Database error: {e}[/red]")
+            raise typer.Exit(code=1)
+
+
 def main():
     """Entry point for the CLI."""
     app()
