@@ -2,42 +2,27 @@
 
 from datetime import datetime, UTC
 import typer
-from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
-from santas_little_helper.models import Order, Package, Platform, Carrier, OrderStatus
+from santas_little_helper.models import Order, Package, OrderStatus
 from santas_little_helper.database import get_session
+from santas_little_helper.utils import (
+    console,
+    STATUS_COLORS,
+    STATUS_ORDER,
+    parse_platform,
+    parse_carrier,
+    parse_status,
+    format_status,
+    display_order_details,
+)
 
 app = typer.Typer(
     help="Santa's Little Helper - Track your packages in one place",
     no_args_is_help=True,
 )
-console = Console()
-
-# Status color mapping
-STATUS_COLORS = {
-    OrderStatus.DELIVERED.value: "green",
-    OrderStatus.OUT_FOR_DELIVERY.value: "bright_green",
-    OrderStatus.IN_TRANSIT.value: "yellow",
-    OrderStatus.SHIPPED.value: "yellow",
-    OrderStatus.PENDING.value: "cyan",
-    OrderStatus.EXCEPTION.value: "red",
-    OrderStatus.CANCELLED.value: "dim",
-}
-
-# Status display order (most urgent first)
-STATUS_ORDER = [
-    OrderStatus.OUT_FOR_DELIVERY.value,
-    OrderStatus.IN_TRANSIT.value,
-    OrderStatus.SHIPPED.value,
-    OrderStatus.PENDING.value,
-    OrderStatus.DELIVERED.value,
-    OrderStatus.EXCEPTION.value,
-    OrderStatus.CANCELLED.value,
-]
 
 
 @app.command()
@@ -65,16 +50,13 @@ def init():
 def add_order():
     """Add a new order interactively."""
     # Prompt for platform with validation
-    platform_input = typer.prompt("Platform (shop.app/etsy/amazon/generic)").lower()
+    platform_input = typer.prompt("Platform (shop.app/etsy/amazon/generic)")
 
     # Validate against Platform enum
     try:
-        platform = Platform(platform_input)
-    except ValueError:
-        console.print(f"[red]✗ Invalid platform: {platform_input}[/red]")
-        console.print(
-            f"[yellow]Must be one of: {', '.join([p.value for p in Platform])}[/yellow]"
-        )
+        platform = parse_platform(platform_input)
+    except ValueError as e:
+        console.print(f"[red]✗ {e}[/red]")
         raise typer.Exit(code=1)
 
     # Prompt for order number (optional)
@@ -99,18 +81,13 @@ def add_order():
 
     if has_tracking:
         tracking_number = typer.prompt("Tracking number")
-        carrier_input = typer.prompt(
-            "Carrier (fedex/ups/usps/amazon_logistics)"
-        ).lower()
+        carrier_input = typer.prompt("Carrier (fedex/ups/usps/amazon_logistics)")
 
         # Validate carrier against Carrier enum
         try:
-            carrier = Carrier(carrier_input)
-        except ValueError:
-            console.print(f"[red]✗ Invalid carrier: {carrier_input}[/red]")
-            console.print(
-                f"[yellow]Must be one of: {', '.join([c.value for c in Carrier])}[/yellow]"
-            )
+            carrier = parse_carrier(carrier_input)
+        except ValueError as e:
+            console.print(f"[red]✗ {e}[/red]")
             raise typer.Exit(code=1)
 
     if carrier:
@@ -203,28 +180,20 @@ def list_orders(
 
             # Validate and apply status filter
             if status:
-                status_lower = status.lower()
                 try:
-                    status_enum = OrderStatus(status_lower)
+                    status_enum = parse_status(status)
                     query = query.filter(Order.status == status_enum.value)
-                except ValueError:
-                    console.print(f"[red]✗ Invalid status: {status}[/red]")
-                    console.print(
-                        f"[yellow]Must be one of: {', '.join([s.value for s in OrderStatus])}[/yellow]"
-                    )
+                except ValueError as e:
+                    console.print(f"[red]✗ {e}[/red]")
                     raise typer.Exit(code=1)
 
             # Validate and apply platform filter
             if platform:
-                platform_lower = platform.lower()
                 try:
-                    platform_enum = Platform(platform_lower)
+                    platform_enum = parse_platform(platform)
                     query = query.filter(Order.platform == platform_enum.value)
-                except ValueError:
-                    console.print(f"[red]✗ Invalid platform: {platform}[/red]")
-                    console.print(
-                        f"[yellow]Must be one of: {', '.join([p.value for p in Platform])}[/yellow]"
-                    )
+                except ValueError as e:
+                    console.print(f"[red]✗ {e}[/red]")
                     raise typer.Exit(code=1)
 
             # Apply tracking filters
@@ -386,19 +355,6 @@ def list_orders(
             raise typer.Exit(code=1)
 
 
-def format_status(status_value: str) -> str:
-    """Format status with color coding."""
-    color = STATUS_COLORS.get(status_value, "white")
-    return f"[{color}]{status_value}[/{color}]"
-
-
-def format_datetime(dt: datetime) -> str:
-    """Format datetime for display."""
-    if dt:
-        return dt.strftime("%Y-%m-%d %H:%M")
-    return "—"
-
-
 @app.command(name="show")
 def show_order(
     order_id: int = typer.Argument(..., help="Order ID to display"),
@@ -418,46 +374,8 @@ def show_order(
                 console.print(f"[red]✗ Order {order_id} not found[/red]")
                 raise typer.Exit(code=1)
 
-            # Display order information panel
-            order_info = f"""[bold]Order #{order.id}[/bold]
-
-Platform:     {order.platform}
-Order Number: {order.order_number or '—'}
-Description:  {order.description or '—'}
-Status:       {format_status(order.status)}
-Created:      {format_datetime(order.created_at)}
-Updated:      {format_datetime(order.updated_at)}
-"""
-            console.print(
-                Panel(order_info, title="Order Information", border_style="blue")
-            )
-
-            # Display package tracking information
-            if order.packages:
-                for package in order.packages:
-                    package_info = f"""[bold]Package #{package.id}[/bold]
-
-Tracking:         {package.tracking_number}
-Carrier:          {package.carrier}
-Status:           {format_status(package.status)}
-Last Location:    {package.last_location or 'Unknown'}
-Est. Delivery:    {package.estimated_delivery.strftime('%Y-%m-%d') if package.estimated_delivery else 'Unknown'}
-Delivered At:     {format_datetime(package.delivered_at)}
-"""
-                    console.print(
-                        Panel(
-                            package_info, title="Package Tracking", border_style="green"
-                        )
-                    )
-            else:
-                no_tracking_info = "[yellow]No tracking information available[/yellow]"
-                console.print(
-                    Panel(
-                        no_tracking_info,
-                        title="Package Tracking",
-                        border_style="yellow",
-                    )
-                )
+            # Display order details using utility function
+            display_order_details(order)
 
         except Exception as e:
             console.print(f"[red]✗ Database error: {e}[/red]")
@@ -496,18 +414,13 @@ def add_tracking(
 
             # Prompt for tracking information
             tracking_number = typer.prompt("Tracking number")
-            carrier_input = typer.prompt(
-                "Carrier (fedex/ups/usps/amazon_logistics)"
-            ).lower()
+            carrier_input = typer.prompt("Carrier (fedex/ups/usps/amazon_logistics)")
 
             # Validate carrier against Carrier enum
             try:
-                carrier = Carrier(carrier_input)
-            except ValueError:
-                console.print(f"[red]✗ Invalid carrier: {carrier_input}[/red]")
-                console.print(
-                    f"[yellow]Must be one of: {', '.join([c.value for c in Carrier])}[/yellow]"
-                )
+                carrier = parse_carrier(carrier_input)
+            except ValueError as e:
+                console.print(f"[red]✗ {e}[/red]")
                 raise typer.Exit(code=1)
 
             # Create Package
@@ -585,14 +498,11 @@ def update_status(
             for status in OrderStatus:
                 console.print(f"  - {status.value}")
 
-            new_status_input = typer.prompt("New status").lower()
+            new_status_input = typer.prompt("New status")
             try:
-                new_status = OrderStatus(new_status_input)
-            except ValueError:
-                console.print(f"[red]✗ Invalid status: {new_status_input}[/red]")
-                console.print(
-                    f"[yellow]Must be one of: {', '.join([s.value for s in OrderStatus])}[/yellow]"
-                )
+                new_status = parse_status(new_status_input)
+            except ValueError as e:
+                console.print(f"[red]✗ {e}[/red]")
                 raise typer.Exit(code=1)
 
             # Handle special status fields

@@ -38,11 +38,122 @@ poetry run python -c "from santas_little_helper.database import init_db; init_db
 
 ## Usage
 
-```bash
-# Show version
-poetry run santas-little-helper version
+### Initialize Database
 
-# More commands coming soon...
+First, initialize the database:
+
+```bash
+poetry run santas-little-helper init
+```
+
+### Adding Orders
+
+Add a new order interactively:
+
+```bash
+poetry run santas-little-helper add-order
+```
+
+You'll be prompted for:
+- Platform (shop.app, etsy, amazon, or generic)
+- Order number (optional)
+- Description
+- Whether tracking is available
+- If yes: tracking number and carrier
+
+**Example session:**
+```
+Platform (shop.app/etsy/amazon/generic): etsy
+Order number (optional, press Enter to skip): ETSY-12345
+Description: Handmade Christmas ornament
+Has tracking number? [y/N]: y
+Tracking number: 9400111899562410001234
+Carrier (fedex/ups/usps/amazon_logistics): usps
+✓ Order added successfully (ID: 1)
+  Package tracking: 9400111899562410001234 via usps
+```
+
+### Listing Orders
+
+View all orders in a formatted table:
+
+```bash
+poetry run santas-little-helper list
+```
+
+Filter orders by various criteria:
+
+```bash
+# Show only active orders (not delivered or cancelled)
+poetry run santas-little-helper list --active
+
+# Show only delivered orders
+poetry run santas-little-helper list --delivered
+
+# Filter by status
+poetry run santas-little-helper list --status in_transit
+
+# Filter by platform
+poetry run santas-little-helper list --platform etsy
+
+# Show only orders with tracking
+poetry run santas-little-helper list --has-tracking
+
+# Show only orders without tracking
+poetry run santas-little-helper list --no-tracking
+
+# Combine filters
+poetry run santas-little-helper list --platform etsy --active
+```
+
+### Viewing Order Details
+
+Show detailed information for a specific order:
+
+```bash
+poetry run santas-little-helper show 1
+```
+
+### Adding Tracking
+
+Add tracking information to an existing order:
+
+```bash
+poetry run santas-little-helper add-tracking 1
+```
+
+You'll be prompted for the tracking number and carrier.
+
+### Updating Status
+
+Manually update order or package status:
+
+```bash
+poetry run santas-little-helper update-status 1
+```
+
+You'll be prompted for:
+- Whether to update the order or a specific package
+- The new status
+- Additional information based on status:
+  - **DELIVERED**: Delivery timestamp (defaults to now)
+  - **IN_TRANSIT** or **OUT_FOR_DELIVERY**: Optional location
+
+**Available statuses:**
+- `pending` - Order placed, not shipped
+- `shipped` - Package has shipped
+- `in_transit` - Package is in transit
+- `out_for_delivery` - Package is out for delivery
+- `delivered` - Package has been delivered
+- `exception` - Delivery exception occurred
+- `cancelled` - Order was cancelled
+
+### Version
+
+Show the version:
+
+```bash
+poetry run santas-little-helper version
 ```
 
 ## Development
