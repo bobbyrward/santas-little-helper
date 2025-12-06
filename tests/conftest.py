@@ -3,11 +3,10 @@
 import os
 import tempfile
 import pytest
-from pathlib import Path
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 
-from santas_little_helper.models import Base, Order, Package, OrderStatus
+from santas_little_helper.models import Order, Package, OrderStatus
 from santas_little_helper.database import init_db
 
 
@@ -31,7 +30,7 @@ def test_db_file():
 
 
 @pytest.fixture(scope="function")
-def test_session(test_db_file, monkeypatch) -> Session:
+def test_session(test_db_file, monkeypatch):
     """Create a database session for testing.
 
     Function-scoped to ensure each test gets a fresh session and database.

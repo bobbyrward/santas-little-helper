@@ -3,7 +3,6 @@
 from typer.testing import CliRunner
 
 from santas_little_helper.main import app
-from santas_little_helper.models import OrderStatus
 
 runner = CliRunner()
 
@@ -11,14 +10,13 @@ runner = CliRunner()
 def test_full_workflow(mock_get_session):
     """Test complete user workflow from adding order to delivery."""
     # 1. Add order without tracking
-    result = runner.invoke(
-        app, ["add-order"], input="etsy\n\nChristmas sweater\nn\n"
-    )
+    result = runner.invoke(app, ["add-order"], input="etsy\n\nChristmas sweater\nn\n")
     assert result.exit_code == 0
     assert "Order added successfully" in result.stdout
 
     # Extract order ID from output
     import re
+
     match = re.search(r"ID: (\d+)", result.stdout)
     assert match is not None
     order_id = match.group(1)
@@ -184,7 +182,9 @@ def test_list_with_has_tracking_filter(
     assert "Christmas ornament" not in result.stdout
 
 
-def test_add_tracking_to_order_with_tracking(mock_get_session, sample_order_with_package):
+def test_add_tracking_to_order_with_tracking(
+    mock_get_session, sample_order_with_package
+):
     """Test adding additional tracking to order that already has tracking."""
     result = runner.invoke(
         app,

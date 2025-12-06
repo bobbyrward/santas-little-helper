@@ -5,9 +5,8 @@ from typing import Optional
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 
-from santas_little_helper.models import Order, Package, Platform, Carrier, OrderStatus
+from santas_little_helper.models import Order, Platform, Carrier, OrderStatus
 
 console = Console()
 
@@ -50,9 +49,7 @@ def parse_platform(value: str) -> Platform:
         return Platform(value.lower())
     except ValueError:
         valid_platforms = ", ".join([p.value for p in Platform])
-        raise ValueError(
-            f"Invalid platform: {value}. Valid options: {valid_platforms}"
-        )
+        raise ValueError(f"Invalid platform: {value}. Valid options: {valid_platforms}")
 
 
 def parse_carrier(value: str) -> Carrier:

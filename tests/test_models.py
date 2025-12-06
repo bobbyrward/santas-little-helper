@@ -1,7 +1,5 @@
 """Tests for database models."""
 
-from datetime import datetime
-
 from santas_little_helper.models import (
     Order,
     Package,

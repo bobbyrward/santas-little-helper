@@ -16,7 +16,6 @@ from santas_little_helper.utils import (
     parse_carrier,
     parse_status,
     format_status,
-    format_datetime,
     display_order_details,
 )
 
