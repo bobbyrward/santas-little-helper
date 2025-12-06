@@ -15,12 +15,12 @@ def test_database_schema_creation():
         db_path = Path(tmpdir) / "test.db"
         engine = create_engine(f"sqlite:///{db_path}")
         Base.metadata.create_all(engine)
-        
+
         assert db_path.exists()
-        
+
         SessionFactory = sessionmaker(bind=engine)
         session = SessionFactory()
-        
+
         order = Order(
             platform=Platform.ETSY.value,
             order_number="TEST123",
@@ -28,7 +28,7 @@ def test_database_schema_creation():
         )
         session.add(order)
         session.commit()
-        
+
         package = Package(
             order_id=order.id,
             tracking_number="TRACK123",
@@ -36,11 +36,11 @@ def test_database_schema_creation():
         )
         session.add(package)
         session.commit()
-        
+
         retrieved_order = session.query(Order).first()
         assert retrieved_order is not None
         assert retrieved_order.order_number == "TEST123"
         assert len(retrieved_order.packages) == 1
         assert retrieved_order.packages[0].tracking_number == "TRACK123"
-        
+
         session.close()

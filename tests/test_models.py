@@ -49,6 +49,7 @@ def test_carrier_enum():
     assert Carrier.UPS.value == "ups"
     assert Carrier.USPS.value == "usps"
     assert Carrier.AMAZON_LOGISTICS.value == "amazon_logistics"
+    assert Carrier.ONTRAC.value == "ontrac"
 
 
 def test_order_status_enum():
