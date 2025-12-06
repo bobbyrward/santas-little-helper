@@ -10,11 +10,13 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 class Base(DeclarativeBase):
     """Base class for all models."""
+
     pass
 
 
 class Platform(str, Enum):
     """Supported order platforms."""
+
     SHOP_APP = "shop.app"
     ETSY = "etsy"
     AMAZON = "amazon"
@@ -23,14 +25,17 @@ class Platform(str, Enum):
 
 class Carrier(str, Enum):
     """Supported shipping carriers."""
+
     FEDEX = "fedex"
     UPS = "ups"
     USPS = "usps"
     AMAZON_LOGISTICS = "amazon_logistics"
+    ONTRAC = "ontrac"
 
 
 class OrderStatus(str, Enum):
     """Order status values."""
+
     PENDING = "pending"
     SHIPPED = "shipped"
     IN_TRANSIT = "in_transit"
@@ -47,9 +52,9 @@ def utc_now():
 
 class Order(Base):
     """Order tracking model."""
-    
+
     __tablename__ = "orders"
-    
+
     id: Mapped[int] = mapped_column(primary_key=True)
     platform: Mapped[str] = mapped_column(String(50))
     order_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -60,7 +65,7 @@ class Order(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utc_now, onupdate=utc_now
     )
-    
+
     packages: Mapped[list["Package"]] = relationship(
         back_populates="order", cascade="all, delete-orphan"
     )
@@ -68,20 +73,22 @@ class Order(Base):
 
 class Package(Base):
     """Package tracking model."""
-    
+
     __tablename__ = "packages"
-    
+
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
     tracking_number: Mapped[str] = mapped_column(String(100), unique=True)
     carrier: Mapped[str] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(50), default=OrderStatus.PENDING.value)
     last_location: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    estimated_delivery: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    estimated_delivery: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
     delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utc_now, onupdate=utc_now
     )
-    
+
     order: Mapped["Order"] = relationship(back_populates="packages")

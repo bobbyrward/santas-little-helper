@@ -81,7 +81,7 @@ def add_order():
 
     if has_tracking:
         tracking_number = typer.prompt("Tracking number")
-        carrier_input = typer.prompt("Carrier (fedex/ups/usps/amazon_logistics)")
+        carrier_input = typer.prompt("Carrier (fedex/ups/usps/amazon_logistics/ontrac)")
 
         # Validate carrier against Carrier enum
         try:
@@ -138,6 +138,7 @@ def add_order():
             raise typer.Exit(code=1)
 
 
+@app.command(name="ls")
 @app.command(name="list")
 def list_orders(
     status: str = typer.Option(
@@ -414,7 +415,9 @@ def add_tracking(
 
             # Prompt for tracking information
             tracking_number = typer.prompt("Tracking number")
-            carrier_input = typer.prompt("Carrier (fedex/ups/usps/amazon_logistics)")
+            carrier_input = typer.prompt(
+                "Carrier (fedex/ups/usps/amazon_logistics/ontrac)"
+            )
 
             # Validate carrier against Carrier enum
             try:
